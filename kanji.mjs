@@ -67,7 +67,7 @@ async function getJapaneseWord(kanjiStr) {
 async function getJapaneseWords(kanjiSearchChar, permutationList) {
 	var url = "https://kanjiapi.dev/v1/words/" + kanjiSearchChar;
 	var response = await fetch(url);
-	var data = await response.getContentText();
+	var data = await response.json();
 	
 	var results = [];
 
@@ -187,7 +187,7 @@ function buildPermutationDic(buffer) {
 /**
  * Look at groupings of kanji and build a list of strings.
  */
-function buildJapaneseWordDic(textStr) {
+async function buildJapaneseWordDic(textStr) {
 	var wordDic = {};
 	var buffer = "";
 
@@ -203,7 +203,7 @@ function buildJapaneseWordDic(textStr) {
 			//Logger.log("permutationDic is " + JSON.stringify(permutationDic));
 			if (permutationDic !== null) {
 				for (var key in permutationDic) {
-					var results = getJapaneseWords(key, permutationDic[key]);
+					var results = await getJapaneseWords(key, permutationDic[key]);
 					if (results != null && results.length > 0) {
 						for (var resultIndex = 0; resultIndex < results.length; ++resultIndex) {
 							var result = results[resultIndex];
@@ -256,12 +256,12 @@ function isKanji(val) {
  * @param textStr Japanese text to process and build a kanji table from.
  * @customfunction
  */
-function buildKanjiTable(textStr) {
+async function buildKanjiTable(textStr) {
 	var output = [];
 	output.push(["Kanji Table"]);
 	output.push(["kanji", "konyomi", "onyomi", "grade", "definition", "count"]);
 
-	var kanjiDic = buildKanjiTableData(textStr);
+	var kanjiDic = await buildKanjiTableData(textStr);
 	var statDic = {};
 	var kanjiCount = 0; //count as we loop
 	for (var key in kanjiDic) {
@@ -302,7 +302,7 @@ function buildKanjiTable(textStr) {
 /**
  * Build the dictionary of unique kanji in the text
  */
-function buildKanjiTableData(textStr) {
+async function buildKanjiTableData(textStr) {
 	var kanjiDic = {};
 
 	// Kanji unicode: 	\u4E00-\u9FAF
@@ -318,7 +318,7 @@ function buildKanjiTableData(textStr) {
 				kanjiDic[unicodeVal].count += 1;
 			} else {
 				kanjiDic[unicodeVal] = {
-					kanjiInfo: getKanjiArray(unicodeVal),
+					kanjiInfo: await getKanjiArray(unicodeVal),
 					count: 1
 				};
 			}
@@ -333,12 +333,12 @@ function buildKanjiTableData(textStr) {
  * @param textStr Japanese text to process and build a kanji table from.
  * @customfunction
  */
-function buildJapaneseWordTable(textStr) {
+async function buildJapaneseWordTable(textStr) {
 	var output = [];
 	output.push(["Vocabulary List"]);
 
 	//get words made out of kanji and print them out.
-	var wordDic = buildJapaneseWordDic(textStr)
+	var wordDic = await buildJapaneseWordDic(textStr)
 	for (var key in wordDic) {
 		var wordInfo = wordDic[key].wordInfo;
 
@@ -355,10 +355,10 @@ function buildJapaneseWordTable(textStr) {
 /**
  * Build kanji and word tables -- but this can exceed the max allowed runtime for a goodgle spreadsheet.
  */
-function BuildJapaneseWorksheet(textStr) {
+async function BuildJapaneseWorksheet(textStr) {
 	var output = [];
 
-	var kanjiDic = buildKanjiTableData(textStr);
+	var kanjiDic = await buildKanjiTableData(textStr);
 	for (var key in kanjiDic) {
 		var kanjiInfo = kanjiDic[key].kanjiInfo;
 		//add the kanji character to the front
@@ -371,7 +371,7 @@ function BuildJapaneseWorksheet(textStr) {
 	output.push(["Vocabulary List"]);
 
 	//get words made out of kanji and print them out.
-	var wordDic = buildJapaneseWordDic(textStr)
+	var wordDic = await buildJapaneseWordDic(textStr)
 	for (var key in wordDic) {
 		var wordInfo = wordDic[key].wordInfo;
 
