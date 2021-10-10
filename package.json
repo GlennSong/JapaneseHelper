@@ -1,0 +1,29 @@
+{
+  "name": "japanesehelper",
+  "version": "1.0.0",
+  "description": "Helps you find Japanese vocab and kanji and builds a CSV table of them.",
+  "main": "index.mjs",
+  "type": "module",
+
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GlennSong/JapaneseHelper.git"
+  },
+  "keywords": [
+    "kanji",
+    "japanese"
+  ],
+  "author": "Glenn Song",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/GlennSong/JapaneseHelper/issues"
+  },
+  "homepage": "https://github.com/GlennSong/JapaneseHelper#readme",
+  "dependencies": {
+    "node-fetch": "^3.0.0",
+    "yargs": "^13.2.4"
+  }
+}
