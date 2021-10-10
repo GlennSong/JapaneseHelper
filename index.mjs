@@ -4,9 +4,6 @@
 //https://developer.okta.com/blog/2019/06/18/command-line-app-with-nodejs
 import yargs from 'yargs';
 import kanji from "./kanji.mjs";
-// const yargs = require("yargs");
-
-// const kanji = require('./kanji.mjs');
 
 // module.exports = {
 //     getKanjiArray,
