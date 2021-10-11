@@ -153,6 +153,13 @@ function buildPermutationDic(buffer) {
 
 	var start = 0;
 	while (start < buffer.length - 1) {
+        //skip if it's not kanji since the dictionary can't search for those.
+        if(!isKanji(buffer[start])) 
+        {
+            start++;
+            continue;
+        }
+
 		permutationDic[buffer[start]] = [];
 
 		for (var minStart = 2;
@@ -184,6 +191,32 @@ function buildPermutationDic(buffer) {
   */
 }
 
+async function searchPermutationDic(textStr) {
+	var wordDic = {};
+    var permutationDic = buildPermutationDic(textStr);
+    // console.log("permutationDic is " + JSON.stringify(permutationDic));
+    if (permutationDic !== null) {
+        for (var key in permutationDic) {
+            var results = await getJapaneseWords(key, permutationDic[key]);
+            if (results != null && results.length > 0) {
+                for (var resultIndex = 0; resultIndex < results.length; ++resultIndex) {
+                    var result = results[resultIndex];
+                    if (wordDic[result.word]) {
+                        wordDic[result.word].count += 1;
+                    } else {
+                        wordDic[result.word] = {
+                            "wordInfo": result,
+                            "count": 1
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return wordDic;
+}
+
 /**
  * Look at groupings of kanji and build a list of strings.
  */
@@ -191,16 +224,16 @@ async function buildJapaneseWordDic(textStr) {
 	var wordDic = {};
 	var buffer = "";
 
-	for (var i = 0; i < textStr.length; ++i) {
+	for (let i = 0; i < textStr.length; ++i) {
 		var unicodeVal = textStr[i];
 
 		//test if it's a kanji character
-		if (isKanji(textStr.charCodeAt(i))) {
+		if (isKanji(textStr[i])) {
 			buffer += unicodeVal;
 		} else if (buffer.length >= kMinWordLen) {
 			//handle different word permutations
 			var permutationDic = buildPermutationDic(buffer);
-			//Logger.log("permutationDic is " + JSON.stringify(permutationDic));
+			Logger.log("permutationDic is " + JSON.stringify(permutationDic));
 			if (permutationDic !== null) {
 				for (var key in permutationDic) {
 					var results = await getJapaneseWords(key, permutationDic[key]);
@@ -248,7 +281,15 @@ async function buildJapaneseWordDic(textStr) {
 
 //helper function to test if the letter is a valid kanji unicode
 function isKanji(val) {
-	return (val >= 0x4E00 && val <= 0x9FAF);
+	return (val >= '\u4E00' && val <= '\u9FBF');
+}
+
+function isHiragana(val) {
+	return (val >= '\u3040' && val <= '\u309F');
+}
+
+function isKatakana(val) {
+	return (val >= '\u30A0' && val <= '\u30FF');
 }
 
 /**
@@ -328,6 +369,33 @@ async function buildKanjiTableData(textStr) {
 	return kanjiDic;
 }
 
+
+
+/**
+ * Given a text string returns an array of all the unique kanji based vocab words
+ * @param textStr Japanese text to process and build a kanji table from.
+ * @customfunction
+ */
+ async function buildJapaneseWordTable_v2(textStr) {
+	var output = [];
+	output.push(["Vocabulary List"]);
+
+	//get words made out of kanji and print them out.
+	var wordDic = await searchPermutationDic(textStr)
+	for (var key in wordDic) {
+		var wordInfo = wordDic[key].wordInfo;
+
+		if (wordInfo !== null) {
+			output.push([key, wordInfo.pronounced, "", "", wordInfo.meanings, wordDic[key].count]);
+		} else {
+			output.push([key, "none", "", "", "no definition", 0]);
+		}
+	}
+
+	return output;
+}
+
+
 /**
  * Given a text string returns an array of all the unique kanji based vocab words
  * @param textStr Japanese text to process and build a kanji table from.
@@ -385,6 +453,147 @@ async function BuildJapaneseWorksheet(textStr) {
 	return output;
 }
 
+function clamp(num, min, max) {
+    return Math.min(Math.max(num, min), max);
+}
+
+//return a list of Japanese words and their definition and hiragana.
+async function BuildJapaneseWords_v2(textStr) {
+    var outputDic = {};
+    var output = [];
+    // output.push(["Vocabulary List"]);
+
+    var clauses = SplitTextIntoClauses(textStr);
+    var tasks = [];
+
+    for(let i=0; i<clauses.length; ++i) 
+    {
+        var words = BuildWordList(clauses[i]);
+        for(let j=0; j<words.length; ++j) 
+        {
+            tasks.push(searchPermutationDic(words[j]));
+        }
+    }
+
+    var results = await Promise.all(tasks);
+
+    //consolidate all of the results into one dictionary.
+    for(let k=0; k<results.length; ++k)
+    {
+        var result = results[k];
+        for (var key in result) {
+            var wordInfo = result[key].wordInfo;
+    
+            if(outputDic[key] == null) 
+            {
+                outputDic[key] = [key, wordInfo.pronounced, wordInfo.meanings];
+            }
+        }
+    }
+
+    for(var key in outputDic) 
+    {
+        output.push(outputDic[key]);
+    }
+
+    return output;
+}
+
+
+//index is the current index, function will look at the previous one.
+function IsPrevCharKanji(index, clauseStr)
+{
+    //get prev character.
+    var clampIndex = clamp(index-1, 0, clauseStr.length);
+    //still within bounds.
+    if(clampIndex < index) 
+    {
+        return isKanji(clauseStr[clampIndex]); 
+    }
+    
+    return false;
+}
+
+function BuildWordList(clauseStr) {
+    //loop through the characters and determine if the character is a kanji character.
+    //see if there's a kanji character before it, if so, we've probably taken care of it.
+    var buffers = [];
+
+    //outer loop looks at each character to determine if it's the start of a kanji string. 
+    for(let i=0; i<clauseStr.length; ++i) 
+    {
+        // console.log(clauseStr[i] + "isHiragana " + isHiragana(clauseStr[i]) + ", isKanji " + isKanji(clauseStr[i]) + ", isPrevKanji: " + IsPrevCharKanji(i, clauseStr));
+        //if this is a kanji character and it doesn't have a previous one, buffer it.
+        if(isKanji(clauseStr[i]) && !IsPrevCharKanji(i, clauseStr)) 
+        {
+            buffers.push(BuildWord(clauseStr, i));
+        }
+    }
+    return buffers;
+}
+
+//find an appropriate end index and make a substring.
+function BuildWord(clauseStr, startIndex)
+{
+    var kConsectuiveNonKanjiMax = 2;
+    var consecutiveNonKanjiCnt = 0;
+
+    // var buffer = clauseStr[startIndex];
+    let endIndex = 0;
+    for(endIndex = startIndex + 1; endIndex<clauseStr.length; ++endIndex) 
+    {
+        //look for terminating cases. Case 1: multiple consecutive non-kanji characters.
+        if(!isKanji(clauseStr[endIndex]))
+        {
+            consecutiveNonKanjiCnt++;
+        }
+
+        //case 2: we hit a typical language particle. 
+        if(consecutiveNonKanjiCnt > kConsectuiveNonKanjiMax || IsParticle(clauseStr[endIndex])) 
+        {
+            break;
+        }
+    }
+
+    return clauseStr.substring(startIndex, endIndex);
+
+    // return buffer;
+}
+
+//These aren't all the particles, just the most typical ones used to break up words.
+function IsParticle(unicodeChar) 
+{
+    var particles = ['\u3067', '\u306b', '\u306e', '\u306f', '\u3092']; //で、は、に、の、を
+    for(let i=0; i<particles.length; ++i)
+    {
+        if(particles[i] == unicodeChar)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function SplitTextIntoClauses(textStr) {
+    // var strings = textStr.split('\u3001');
+    var sentences = textStr.split('\u3002');
+    var clauses = [];
+    for(let i=0; i<sentences.length; ++i)
+    {
+        //take each sentence and split it into clauses using the comma.
+        var commaSplit = sentences[i].split('\u3001'); //split on the japanese comma.
+        for(let j=0; j<commaSplit.length; ++j) 
+        {
+            if(commaSplit[j].length >= 0) 
+            {
+                clauses.push(commaSplit[j]);
+            }
+        }
+    }
+
+    return clauses;
+}
 
 // module.exports = {
 export default {
@@ -392,5 +601,6 @@ export default {
 	getJapaneseWord,
 	buildKanjiTable,
 	buildJapaneseWordTable,
-	BuildJapaneseWorksheet
+	BuildJapaneseWorksheet,
+    BuildJapaneseWords_v2
 }

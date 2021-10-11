@@ -37,7 +37,26 @@ else if(options.file !== undefined)
 {
     fs.readFile(options.file, 'utf8', async (error, data) => {
         // console.log(data);
-        var result = await kanji.buildJapaneseWordTable(data);
-        console.log(result);
+        // var result = await kanji.buildJapaneseWordTable(data);
+        var results = await kanji.BuildJapaneseWords_v2(data);
+        createCSV(results, ["word, hiragana, meaning"]);
+    });
+}
+
+function createCSV(wordList, headers) 
+{
+    var csv = headers.join(",") + "\n";
+    for(let i=0; i<wordList.length; ++i) 
+    {
+        csv += wordList[i].join(",") + "\n";
+    }
+
+    var currDateTime = new Date();
+    var filename = "output_" + currDateTime.toUTCString().replace(/:/g, "-") + ".csv";
+    fs.writeFile(filename, csv, function(err) {
+        if(err) {
+            return console.log(err);
+        }
+        console.log("Saved file.");
     });
 }
